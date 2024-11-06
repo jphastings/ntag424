@@ -8,11 +8,11 @@ import (
 )
 
 var (
-	aid = []byte{0xd2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01}
+	aidNDEF = []byte{0xd2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01}
 )
 
 func (cp CommandProcessor) ReadNDEF() (*ndef.Message, error) {
-	if err := cp.ISOSelectFile(SelectDirectoryByName(aid)); err != nil {
+	if err := cp.ISOSelectFile(SelectDirectoryByName(aidNDEF)); err != nil {
 		return nil, err
 	}
 
@@ -43,6 +43,25 @@ func (cp CommandProcessor) ReadNDEF() (*ndef.Message, error) {
 	return msg, nil
 }
 
-func (cp CommandProcessor) WriteNDEF(*ndef.Message) error {
-	return fmt.Errorf("writing NDEF not yet implemented")
+func (cp CommandProcessor) WriteNDEF(msg *ndef.Message) error {
+	b, err := msg.Marshal()
+	if err != nil {
+		return err
+	}
+
+	if err := cp.ISOSelectFile(SelectDirectoryByName(aidNDEF)); err != nil {
+		return err
+	}
+
+	if err := cp.ISOSelectFile(SelectAnyByIdentifier(cp.ndefFileID)); err != nil {
+		return err
+	}
+
+	lenB := make([]byte, 2)
+	binary.BigEndian.PutUint16(lenB, uint16(len(b)))
+	if err := cp.ISOUpdateBinary(lenB, 0); err != nil {
+		return err
+	}
+
+	return cp.ISOUpdateBinary(b, 2)
 }

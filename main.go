@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/hsanjuan/go-ndef"
 	"github.com/jphastings/ntag424/cards"
 	"github.com/jphastings/ntag424/commands"
 )
@@ -18,6 +19,8 @@ func main() {
 	check(err)
 
 	c := commands.NewCommandProcessor(card)
+
+	check(c.WriteNDEF(ndef.NewURIMessage("https://www.byjp.me")))
 
 	msg, err := c.ReadNDEF()
 	check(err)

@@ -23,6 +23,11 @@ var apduErrors = map[byte]apduError{
 			0x81: errors.New("memory failure"),
 		},
 	},
+	0x67: {
+		sub: map[byte]error{
+			0x00: errors.New("wrong length"),
+		},
+	},
 	0x6A: {
 		context: "Wrong parameter(s) P1-P2",
 		sub: map[byte]error{
