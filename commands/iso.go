@@ -23,7 +23,7 @@ func binaryOffset(n uint16) ([]byte, error) {
 }
 
 // Reads the binary information in the *currently selected file* from the provided offset.
-func (cp CommandProcessor) ISOReadBinary(len int, offset uint16) ([]byte, error) {
+func (cp *CommandProcessor) ISOReadBinary(len int, offset uint16) ([]byte, error) {
 	off, err := binaryOffset(offset)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (cp CommandProcessor) ISOReadBinary(len int, offset uint16) ([]byte, error)
 }
 
 // Updates the binary information in the *currently selected file* at the provided offset.
-func (cp CommandProcessor) ISOUpdateBinary(data []byte, offset uint16) error {
+func (cp *CommandProcessor) ISOUpdateBinary(data []byte, offset uint16) error {
 	if len(data) > 255 {
 		return ErrBinaryTooLong
 	}
@@ -90,7 +90,11 @@ var (
 
 const selectNoResponseData = 0x0C
 
-func (cp CommandProcessor) ISOSelectFile(s selectInstruction) error {
+func (cp *CommandProcessor) ISOSelectFile(s selectInstruction) error {
+	// The tag ends its authenticated session on any file selection (confirmed on hardware),
+	// so drop ours to give callers ErrNotAuthenticated rather than the card's 91AE.
+	cp.session = nil
+
 	_, err := cp.card.SendCommandAPDU(&apdu.Capdu{
 		Cla: 0x00, Ins: 0xA4, P1: s.p1, P2: selectNoResponseData,
 		Data: s.data,

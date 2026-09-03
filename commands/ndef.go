@@ -2,16 +2,19 @@ package commands
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/hsanjuan/go-ndef"
 )
 
-var (
-	aidNDEF = []byte{0xd2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01}
-)
+var aidNDEF = []byte{0xd2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01}
 
-func (cp CommandProcessor) ReadNDEF() (*ndef.Message, error) {
+// ErrNDEFTooLong is returned when an NDEF message doesn't fit in the tag's 256-byte NDEF file.
+var ErrNDEFTooLong = errors.New("NDEF message too long for the tag's 256 byte NDEF file")
+
+// ReadNDEF reads and parses the NDEF message currently stored on the tag.
+func (cp *CommandProcessor) ReadNDEF() (*ndef.Message, error) {
 	if err := cp.ISOSelectFile(SelectDirectoryByName(aidNDEF)); err != nil {
 		return nil, err
 	}
@@ -43,17 +46,19 @@ func (cp CommandProcessor) ReadNDEF() (*ndef.Message, error) {
 	return msg, nil
 }
 
-func (cp CommandProcessor) WriteNDEF(msg *ndef.Message) error {
+// WriteNDEF marshals msg and writes it to the tag's NDEF file, in plain mode.
+func (cp *CommandProcessor) WriteNDEF(msg *ndef.Message) error {
 	b, err := msg.Marshal()
 	if err != nil {
 		return err
 	}
 
-	m := getMirrorConfig(b)
-	if m.enabled {
-		if err := cp.EnableSDM(m); err != nil {
-			return err
-		}
+	return cp.writeNDEF(b)
+}
+
+func (cp *CommandProcessor) writeNDEF(b []byte) error {
+	if 2+len(b) > 256 {
+		return ErrNDEFTooLong
 	}
 
 	if err := cp.ISOSelectFile(SelectDirectoryByName(aidNDEF)); err != nil {
