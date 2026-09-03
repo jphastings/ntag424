@@ -30,6 +30,20 @@ var apduErrors = map[byte]apduError{
 			0x00: errors.New("wrong length"),
 		},
 	},
+	0x69: {
+		context: "Command not allowed",
+		sub: map[byte]error{
+			0x00: errors.New("no information given"),
+			0x81: errors.New("command incompatible with file structure"),
+			0x82: errors.New("security status not satisfied"),
+			0x83: errors.New("authentication method blocked"),
+			0x84: errors.New("referenced data invalidated"),
+			0x85: errors.New("conditions of use not satisfied"),
+			0x86: errors.New("command not allowed (no current EF)"),
+			0x87: errors.New("expected secure messaging data objects missing"),
+			0x88: errors.New("incorrect secure messaging data objects"),
+		},
+	},
 	0x6A: {
 		context: "Wrong parameter(s) P1-P2",
 		sub: map[byte]error{
