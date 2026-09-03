@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/hsanjuan/go-ndef"
 	"github.com/jphastings/ntag424/cards"
 	"github.com/jphastings/ntag424/commands"
 )
@@ -17,10 +16,12 @@ func check(err error) {
 func main() {
 	card, err := cards.NewScard()
 	check(err)
+	defer card.Close()
 
 	c := commands.NewCommandProcessor(card)
 
-	check(c.WriteNDEF(ndef.NewURIMessage("https://www.byjp.me?uid={{uid}}")))
+	check(c.Authenticate(0, make([]byte, 16)))
+	check(c.WriteURL("https://www.byjp.me?uid={{uid}}&ctr={{ctr}}&mac={{mac}}", 1))
 
 	msg, err := c.ReadNDEF()
 	check(err)
@@ -31,5 +32,4 @@ func main() {
 
 		fmt.Println(p.String())
 	}
-
 }
