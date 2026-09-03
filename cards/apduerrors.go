@@ -1,6 +1,8 @@
 package cards
 
-import "errors"
+import (
+	"errors"
+)
 
 type apduError struct {
 	context string
@@ -50,6 +52,34 @@ var apduErrors = map[byte]apduError{
 		context: "Wrong length Le",
 		sub: map[byte]error{
 			0x00: errors.New("incorrect P3 length"),
+		},
+	},
+	0x91: {
+		context: "OK (?)",
+		sub: map[byte]error{
+			0x01: errors.New("states.activity, States.lock Status or States.lockable has wrong value"),
+			0x02: errors.New("transaction number reached its limit"),
+			0x0C: errors.New("no changes"),
+			0x0E: errors.New("insufficient NV-Memory to complete command"),
+			0x1C: errors.New("command code not supported"),
+			0x1E: errors.New("the CRC or MAC does not match data"),
+			0x40: errors.New("invalid key number specified"),
+			0x7E: errors.New("length of command string invalid"),
+			0x9D: errors.New("not allow the requested command"),
+			0x9E: errors.New("value of the parameter invalid"),
+			0xA0: errors.New("requested AID not present on PICC"),
+			0xA1: errors.New("unrecoverable error within application"),
+			0xAE: errors.New("authentication status does not allow the requested command"),
+			0xAF: errors.New("additional data frame is expected to be sent"),
+			0xBE: errors.New("out of boundary"),
+			0xC1: errors.New("unrecoverable error within PICC"),
+			0xCA: errors.New("previous Command was not fully completed"),
+			0xCD: errors.New("the PICC was disabled by an unrecoverable error"),
+			0xCE: errors.New("number of Applications limited to 28"),
+			0xDE: errors.New("file or application already exists"),
+			0xEE: errors.New("could not complete NV-write operation due to loss of power"),
+			0xF0: errors.New("specified file number does not exist"),
+			0xF1: errors.New("unrecoverable error within file"),
 		},
 	},
 }

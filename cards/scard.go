@@ -36,7 +36,7 @@ func NewScard() (types.Card, error) {
 	return scardCard{scard: card}, nil
 }
 
-func (c scardCard) SendCommand(cmd *apdu.Capdu) (*apdu.Rapdu, error) {
+func (c scardCard) SendCommandAPDU(cmd *apdu.Capdu) (*apdu.Rapdu, error) {
 	b, err := cmd.Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode APDU command: %w", err)
@@ -52,7 +52,7 @@ func (c scardCard) SendCommand(cmd *apdu.Capdu) (*apdu.Rapdu, error) {
 		return nil, fmt.Errorf("couldn't interpret APDU response: %w", err)
 	}
 
-	if r.IsError() {
+	if !r.IsSuccess() {
 		ae, ok := apduErrors[r.SW1]
 		if !ok {
 			return nil, fmt.Errorf("unknown APDU error type %x", r.SW1)

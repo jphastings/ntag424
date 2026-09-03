@@ -29,7 +29,7 @@ func (cp CommandProcessor) ISOReadBinary(len int, offset uint16) ([]byte, error)
 		return nil, err
 	}
 
-	r, err := cp.card.SendCommand(&apdu.Capdu{
+	r, err := cp.card.SendCommandAPDU(&apdu.Capdu{
 		Cla: 0x00, Ins: 0xB0, P1: off[0], P2: off[1],
 		Ne: len,
 	})
@@ -49,7 +49,7 @@ func (cp CommandProcessor) ISOUpdateBinary(data []byte, offset uint16) error {
 		return err
 	}
 
-	_, err = cp.card.SendCommand(&apdu.Capdu{
+	_, err = cp.card.SendCommandAPDU(&apdu.Capdu{
 		Cla: 0x00, Ins: 0xD6, P1: off[0], P2: off[1],
 		Data: data,
 	})
@@ -91,7 +91,7 @@ var (
 const selectNoResponseData = 0x0C
 
 func (cp CommandProcessor) ISOSelectFile(s selectInstruction) error {
-	_, err := cp.card.SendCommand(&apdu.Capdu{
+	_, err := cp.card.SendCommandAPDU(&apdu.Capdu{
 		Cla: 0x00, Ins: 0xA4, P1: s.p1, P2: selectNoResponseData,
 		Data: s.data,
 	})

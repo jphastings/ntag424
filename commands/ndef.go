@@ -49,6 +49,13 @@ func (cp CommandProcessor) WriteNDEF(msg *ndef.Message) error {
 		return err
 	}
 
+	m := getMirrorConfig(b)
+	if m.enabled {
+		if err := cp.EnableSDM(m); err != nil {
+			return err
+		}
+	}
+
 	if err := cp.ISOSelectFile(SelectDirectoryByName(aidNDEF)); err != nil {
 		return err
 	}
