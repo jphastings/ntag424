@@ -183,15 +183,7 @@ func Verify(v Values, key []byte) (*Tap, error) {
 		}
 	}
 
-	sv2 := []byte{0x3C, 0xC3, 0x00, 0x01, 0x00, 0x80}
-	sv2 = append(sv2, uid...)
-	sv2 = append(sv2, counterBytes...)
-	for len(sv2)%16 != 0 {
-		sv2 = append(sv2, 0x00)
-	}
-
-	sessionMAC := crypto.CMAC(key, sv2)
-	expected := crypto.TruncateMAC(crypto.CMAC(sessionMAC, nil))
+	expected := tapMAC(key, uid, counterBytes)
 
 	if subtle.ConstantTimeCompare(expected, mac) != 1 {
 		return nil, ErrMACMismatch
@@ -203,4 +195,17 @@ func Verify(v Values, key []byte) (*Tap, error) {
 	}
 
 	return &Tap{UID: uid, Counter: counter}, nil
+}
+
+// tapMAC is the signature a tag holding key writes for this serial number and
+// counter. The counter is least significant byte first, and empty when the tag
+// doesn't mirror one.
+func tapMAC(key, uid, counterLSB []byte) []byte {
+	sv2 := []byte{0x3C, 0xC3, 0x00, 0x01, 0x00, 0x80}
+	sv2 = append(sv2, uid...)
+	sv2 = append(sv2, counterLSB...)
+	for len(sv2)%16 != 0 {
+		sv2 = append(sv2, 0x00)
+	}
+	return crypto.TruncateMAC(crypto.CMAC(crypto.CMAC(key, sv2), nil))
 }

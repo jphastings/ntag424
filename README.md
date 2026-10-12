@@ -172,6 +172,15 @@ The NXP application note AN12196 describes the calculation in full. Some open
 source verifiers already do this work, for example
 [sdm-backend](https://github.com/icedevml/sdm-backend).
 
+## Testing your server
+
+`validator.Sign` returns the values a tag would mirror, so you can test your server without a tag:
+
+    values := validator.Sign(uid, 42, key) // or validator.SignEncrypted
+    tap, err := validator.Verify(values, key)
+
+A real tag pads its encrypted data with random bytes. `SignEncrypted` pads with zeros, which verify the same way.
+
 ## Keys
 
 The tag stores five AES-128 keys in slots numbered zero to four. Every slot
