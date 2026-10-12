@@ -6,15 +6,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ebfe/scard"
 	"github.com/jphastings/ntag424/types"
 	"github.com/skythen/apdu"
+	"github.com/telesma-app/pcsc"
+)
+
+var (
+	// ErrUnknownReader is returned when WaitForCard is given a reader name
+	// that isn't attached.
+	ErrUnknownReader = pcsc.ErrUnknownReader
+	// ErrNoReaders is returned when a card is wanted from the first reader but
+	// none is attached.
+	ErrNoReaders = pcsc.ErrNoReaders
 )
 
 // Scard is a connection to a smart card through a PC/SC reader.
 type Scard struct {
-	ctx  *scard.Context
-	card *scard.Card
+	card *pcsc.Card
 }
 
 // NewScard connects to the card on the first reader attached. It fails if
@@ -33,82 +41,101 @@ func WaitForCard(ctx context.Context, reader string) (*Scard, error) {
 
 // Readers lists the names of the PC/SC readers attached, for WaitForCard.
 func Readers() ([]string, error) {
-	ctx, err := scard.EstablishContext()
+	readers, err := readerStates()
 	if err != nil {
 		return nil, err
 	}
-	defer ctx.Release()
 
-	readers, err := ctx.ListReaders()
-	if errors.Is(err, scard.ErrNoReadersAvailable) {
-		return nil, nil
+	var names []string
+	for _, r := range readers {
+		names = append(names, r.Name)
 	}
-	return readers, err
+	return names, nil
+}
+
+func readerStates() ([]*pcsc.ReaderInfo, error) {
+	var readers []*pcsc.ReaderInfo
+	for r, err := range pcsc.Enumerate() {
+		if err != nil {
+			return nil, unavailableHint(err)
+		}
+		readers = append(readers, r)
+	}
+	return readers, nil
+}
+
+// unavailableHint says what to install when the PC/SC library or service is
+// missing, which only happens on Linux: macOS and Windows ship both.
+func unavailableHint(err error) error {
+	if errors.Is(err, pcsc.ErrUnavailable) || errors.Is(err, pcsc.ErrNoService) {
+		return fmt.Errorf("%w (install and start pcscd and libpcsclite, eg. `apt install pcscd libpcsclite1`)", err)
+	}
+	return err
 }
 
 func connect(ctx context.Context, reader string, wait bool) (*Scard, error) {
-	sctx, err := scard.EstablishContext()
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	card, err := connectCard(ctx, sctx, reader, wait)
-	if err != nil {
-		sctx.Release()
-		return nil, err
-	}
-
-	return &Scard{ctx: sctx, card: card}, nil
-}
-
-func connectCard(ctx context.Context, sctx *scard.Context, reader string, wait bool) (*scard.Card, error) {
 	if reader == "" {
-		readers, err := sctx.ListReaders()
+		readers, err := Readers()
 		if err != nil {
 			return nil, err
 		}
 		if len(readers) == 0 {
-			return nil, scard.ErrNoReadersAvailable
+			return nil, ErrNoReaders
 		}
 		reader = readers[0]
 	}
 
 	if wait {
-		if err := waitForPresence(ctx, sctx, reader); err != nil {
+		if err := waitForPresence(ctx, reader); err != nil {
 			return nil, err
 		}
 	}
 
-	return sctx.Connect(reader, scard.ShareExclusive, scard.ProtocolAny)
+	card, err := pcsc.Open(reader, pcsc.WithShareMode(pcsc.ShareModeExclusive))
+	if err != nil {
+		return nil, unavailableHint(err)
+	}
+	return &Scard{card: card}, nil
 }
 
-// presencePoll bounds each GetStatusChange call so a cancelled context is
-// noticed promptly. Polling avoids relying on SCardCancel from another
-// goroutine, which not every PC/SC implementation honours.
+// presencePoll is how often WaitForCard looks for a card. Polling keeps the
+// wait simple and cancellable without relying on SCardCancel, which not every
+// PC/SC implementation honours.
 const presencePoll = 250 * time.Millisecond
 
-func waitForPresence(ctx context.Context, sctx *scard.Context, reader string) error {
-	states := []scard.ReaderState{{Reader: reader, CurrentState: scard.StateUnaware}}
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
+func waitForPresence(ctx context.Context, reader string) error {
+	tick := time.NewTicker(presencePoll)
+	defer tick.Stop()
 
-		err := sctx.GetStatusChange(states, presencePoll)
-		if errors.Is(err, scard.ErrTimeout) {
-			continue
-		}
+	for {
+		readers, err := readerStates()
 		if err != nil {
 			return err
 		}
 
-		switch {
-		case states[0].EventState&scard.StatePresent != 0:
-			return nil
-		case states[0].EventState&scard.StateUnknown != 0:
-			return scard.ErrUnknownReader
+		found := false
+		for _, r := range readers {
+			if r.Name != reader {
+				continue
+			}
+			if r.State&pcsc.ReaderStatePresent != 0 {
+				return nil
+			}
+			found = true
 		}
-		states[0].CurrentState = states[0].EventState
+		if !found {
+			return fmt.Errorf("%w: %q", ErrUnknownReader, reader)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tick.C:
+		}
 	}
 }
 
@@ -127,20 +154,14 @@ func (c *Scard) UID() ([]byte, error) {
 // Close disconnects from the card and releases the reader. Safe to call more
 // than once.
 func (c *Scard) Close() error {
-	var errs []error
-
-	if c.card != nil {
-		// The card is left powered and untouched, because closing a connection
-		// should not reset a tag mid-use.
-		errs = append(errs, c.card.Disconnect(scard.LeaveCard))
-		c.card = nil
+	if c.card == nil {
+		return nil
 	}
-	if c.ctx != nil {
-		errs = append(errs, c.ctx.Release())
-		c.ctx = nil
-	}
-
-	return errors.Join(errs...)
+	// pcsc.Open's default leaves the card powered and untouched, because
+	// closing a connection should not reset a tag mid-use.
+	err := c.card.Close()
+	c.card = nil
+	return err
 }
 
 func (c *Scard) SendCommandAPDU(cmd *apdu.Capdu) (*apdu.Rapdu, error) {
@@ -153,7 +174,7 @@ func (c *Scard) SendCommandAPDU(cmd *apdu.Capdu) (*apdu.Rapdu, error) {
 		return nil, fmt.Errorf("couldn't encode APDU command: %w", err)
 	}
 
-	res, err := c.card.Transmit(b)
+	res, err := c.card.Transmit(context.Background(), b)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't transmit to card: %w", err)
 	}
