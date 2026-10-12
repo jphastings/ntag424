@@ -61,9 +61,10 @@ over those zeros when a phone reads the tag.
 Use `{{picc}}`, or use `{{uid}}` and `{{ctr}}`. You cannot combine the two styles.
 There is no value in a tag holding both the encrypted values (`{{picc}}`) and the plain text equivalents (`{{uid}}`, `{{ctr}}`).
 
-`{{mac}}` also needs something to sign. The tag builds its signing key from the
-serial number and the counter. A template with a signature but no `{{uid}}`,
-`{{ctr}}` or `{{picc}}` is therefore rejected.
+`{{mac}}` also needs the serial number beside it, as `{{uid}}` or inside
+`{{picc}}`. The tag only signs the serial number when the URL carries it, and
+your server needs it to check the signature. A template with a signature but no
+`{{uid}}` or `{{picc}}` is therefore rejected, even if it has `{{ctr}}`.
 
 ## Example
 

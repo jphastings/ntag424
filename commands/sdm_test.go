@@ -77,6 +77,12 @@ func TestParseURL_MACWithoutIdentity(t *testing.T) {
 	_, err := ParseURL("https://x.com/?m={{mac}}")
 	assert.ErrorIs(t, err, ErrMACWithoutIdentity)
 
+	_, err = ParseURL("https://x.com/?c={{ctr}}&m={{mac}}")
+	assert.ErrorIs(t, err, ErrMACWithoutIdentity)
+
+	_, err = ParseURL("https://x.com/?u={{uid}}&m={{mac}}")
+	assert.NoError(t, err)
+
 	_, err = ParseURL("https://x.com/?u={{uid}}&c={{ctr}}&m={{mac}}")
 	assert.NoError(t, err)
 
