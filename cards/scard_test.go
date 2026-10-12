@@ -1,6 +1,7 @@
 package cards
 
 import (
+	"context"
 	"encoding/hex"
 	"testing"
 
@@ -58,4 +59,12 @@ func TestStatusError(t *testing.T) {
 		require.ErrorAs(t, err, &se, c.rapdu)
 		assert.Equal(t, c.want, se.Error())
 	}
+}
+
+func TestWaitForCard_CancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := WaitForCard(ctx, "")
+	assert.ErrorIs(t, err, context.Canceled)
 }

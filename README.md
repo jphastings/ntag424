@@ -284,8 +284,14 @@ tag.WriteURL(url, 1) // the feature turns on, and the next read is number one
 ## Requirements
 
 The package talks to a PC/SC card reader through
-[ebfe/scard](https://github.com/ebfe/scard). macOS includes PC/SC. Linux needs
-the `pcscd` daemon.
+[telesma-app/pcsc](https://github.com/telesma-app/pcsc), which loads the
+system's PC/SC library when it first needs it. It needs no cgo, so
+`CGO_ENABLED=0` builds and cross-compiles work for macOS, Linux and Windows.
+
+macOS and Windows include PC/SC, so there is nothing to install. Linux needs
+the `pcscd` daemon running and `libpcsclite.so.1` installed, for example with
+`apt install pcscd libpcsclite1`. Without them, calls return an error that says
+so.
 
 `NewScard` connects to a tag already on the first reader. `WaitForCard`
 instead waits for a tag to arrive, on a reader named by `Readers`, until its
