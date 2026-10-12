@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jphastings/ntag424/types"
 	"github.com/skythen/apdu"
 	"github.com/stretchr/testify/require"
 )
@@ -46,5 +47,12 @@ func (f *fakeCard) SendCommandAPDU(cmd *apdu.Capdu) (*apdu.Rapdu, error) {
 
 	reply, err := hex.DecodeString(ex.rapdu)
 	require.NoError(f.t, err)
-	return apdu.ParseRapdu(reply)
+	r, err := apdu.ParseRapdu(reply)
+	require.NoError(f.t, err)
+
+	// Like a real reader, report failing status words as errors.
+	if !r.IsSuccess() && !(r.SW1 == 0x91 && (r.SW2 == 0x00 || r.SW2 == 0xAF)) {
+		return nil, &types.StatusError{SW: uint16(r.SW1)<<8 | uint16(r.SW2)}
+	}
+	return r, nil
 }

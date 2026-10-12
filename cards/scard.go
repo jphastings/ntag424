@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ebfe/scard"
+	"github.com/jphastings/ntag424/types"
 	"github.com/skythen/apdu"
 )
 
@@ -159,22 +160,31 @@ func (c *Scard) SendCommandAPDU(cmd *apdu.Capdu) (*apdu.Rapdu, error) {
 		return nil, fmt.Errorf("couldn't interpret APDU response: %w", err)
 	}
 
-	if !isSuccess(r) {
-		ae, ok := apduErrors[r.SW1]
-		if !ok {
-			return nil, fmt.Errorf("unknown APDU error %02X%02X", r.SW1, r.SW2)
-		}
-		err, ok := ae.sub[r.SW2]
-		if !ok {
-			return nil, fmt.Errorf("unknown APDU error %02X%02X (%s)", r.SW1, r.SW2, ae.context)
-		}
-		if ae.context != "" {
-			return nil, fmt.Errorf("%s: %w", ae.context, err)
-		}
+	if err := statusError(r); err != nil {
 		return nil, err
 	}
 
 	return r, nil
+}
+
+// statusError returns a *types.StatusError describing r's status word, or
+// nil if it reports success.
+func statusError(r *apdu.Rapdu) error {
+	if isSuccess(r) {
+		return nil
+	}
+
+	e := &types.StatusError{SW: uint16(r.SW1)<<8 | uint16(r.SW2)}
+	if ae, ok := apduErrors[r.SW1]; ok {
+		e.Reason = ae.context
+		if sub, ok := ae.sub[r.SW2]; ok {
+			e.Reason = sub
+			if ae.context != "" {
+				e.Reason = ae.context + ": " + sub
+			}
+		}
+	}
+	return e
 }
 
 // isSuccess reports true for 0x9000, plus 0x9100 and 0x91AF: NTAG 424 native
