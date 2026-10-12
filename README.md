@@ -272,9 +272,13 @@ The package talks to a PC/SC card reader through
 [ebfe/scard](https://github.com/ebfe/scard). macOS includes PC/SC. Linux needs
 the `pcscd` daemon.
 
-`NewScard` claims the reader for your program alone. Call `Close` to hand it
-back, as the example does. Until you do, nothing else can reach the reader, not
-even another connection in the same program.
+`NewScard` connects to a tag already on the first reader. `WaitForCard`
+instead waits for a tag to arrive, on a reader named by `Readers`, until its
+context ends. Both claim the reader for your program alone. Call `Close` to
+hand it back, as the example does. Until you do, nothing else can reach the
+reader, not even another connection in the same program.
+
+`UID` asks the reader for the serial number of the tag. It needs no key.
 
 ## Limitations
 
