@@ -102,8 +102,11 @@ func waitForPresence(ctx context.Context, sctx *scard.Context, reader string) er
 			return err
 		}
 
-		if states[0].EventState&scard.StatePresent != 0 {
+		switch {
+		case states[0].EventState&scard.StatePresent != 0:
 			return nil
+		case states[0].EventState&scard.StateUnknown != 0:
+			return scard.ErrUnknownReader
 		}
 		states[0].CurrentState = states[0].EventState
 	}
