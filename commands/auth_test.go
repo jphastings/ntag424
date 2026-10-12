@@ -63,6 +63,28 @@ func TestAuthenticate_TamperedResponseFails(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAuthFailed)
 }
 
+func TestAuthenticate_WrongKey(t *testing.T) {
+	fake := newFakeCard(t,
+		exchange{capdu: "00A4040C07D2760000850101", rapdu: "9000"},
+		exchange{capdu: "9071000002000000", rapdu: "A04C124213C186F22399D33AC2A3021591AF"},
+		exchange{ins: 0xAF, rapdu: "91AE"},
+	)
+
+	err := NewCommandProcessor(fake).Authenticate(0, make([]byte, 16))
+	assert.ErrorIs(t, err, ErrAuthFailed)
+}
+
+func TestAuthenticate_OtherFailureIsNotAuthFailed(t *testing.T) {
+	fake := newFakeCard(t,
+		exchange{capdu: "00A4040C07D2760000850101", rapdu: "9000"},
+		exchange{capdu: "9071000002000000", rapdu: "9140"},
+	)
+
+	err := NewCommandProcessor(fake).Authenticate(0, make([]byte, 16))
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrAuthFailed)
+}
+
 func table19Session(t *testing.T) *session {
 	t.Helper()
 	return &session{

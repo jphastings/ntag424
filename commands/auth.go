@@ -10,15 +10,18 @@ import (
 	"io"
 
 	"github.com/jphastings/ntag424/internal/crypto"
+	"github.com/jphastings/ntag424/types"
 	"github.com/skythen/apdu"
 )
 
 // Errors returned by Authenticate and sendFull.
 var (
 	ErrNotAuthenticated = errors.New("not authenticated: call Authenticate first")
-	ErrAuthFailed       = errors.New("authentication failed: card's response did not match")
-	ErrResponseMAC      = errors.New("secure messaging response failed its MAC check")
-	ErrInvalidKeyNo     = errors.New("key number must be 0-4")
+	// ErrAuthFailed is returned, wrapped, by Authenticate when the card
+	// rejects the key or its reply proves it holds a different one.
+	ErrAuthFailed   = errors.New("authentication failed")
+	ErrResponseMAC  = errors.New("secure messaging response failed its MAC check")
+	ErrInvalidKeyNo = errors.New("key number must be 0-4")
 	// ErrOldKeyRequired is returned by ChangeKey when replacing a key other
 	// than the one just authenticated with, and oldKey is not a 16-byte
 	// AES-128 key: the tag needs it to compute newKey XOR oldKey.
@@ -92,6 +95,10 @@ func (cp *CommandProcessor) Authenticate(keyNo byte, key []byte) error {
 		Data: crypto.CBCEncrypt(key, crypto.ZeroIV, append(append([]byte{}, rndA...), crypto.RotateLeft(rndB)...)),
 		Ne:   apdu.MaxLenResponseDataStandard,
 	})
+	var status *types.StatusError
+	if errors.As(err, &status) && status.SW == 0x91AE {
+		return fmt.Errorf("%w: the card rejected key %d", ErrAuthFailed, keyNo)
+	}
 	if err != nil {
 		return fmt.Errorf("AuthenticateEV2First part 2: %w", err)
 	}
@@ -103,7 +110,7 @@ func (cp *CommandProcessor) Authenticate(keyNo byte, key []byte) error {
 	ti := plain[0:4]
 	rndAResp := plain[4:20]
 	if subtle.ConstantTimeCompare(rndAResp, crypto.RotateLeft(rndA)) != 1 {
-		return ErrAuthFailed
+		return fmt.Errorf("%w: the card's reply did not match", ErrAuthFailed)
 	}
 
 	cp.session = &session{

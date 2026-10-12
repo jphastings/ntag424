@@ -61,9 +61,10 @@ over those zeros when a phone reads the tag.
 Use `{{picc}}`, or use `{{uid}}` and `{{ctr}}`. You cannot combine the two styles.
 There is no value in a tag holding both the encrypted values (`{{picc}}`) and the plain text equivalents (`{{uid}}`, `{{ctr}}`).
 
-`{{mac}}` also needs something to sign. The tag builds its signing key from the
-serial number and the counter. A template with a signature but no `{{uid}}`,
-`{{ctr}}` or `{{picc}}` is therefore rejected.
+`{{mac}}` also needs the serial number beside it, as `{{uid}}` or inside
+`{{picc}}`. The tag only signs the serial number when the URL carries it, and
+your server needs it to check the signature. A template with a signature but no
+`{{uid}}` or `{{picc}}` is therefore rejected, even if it has `{{ctr}}`.
 
 ## Example
 
@@ -216,7 +217,8 @@ err := tag.ChangeKey(1, oldSigningKey, newSigningKey, 1)
 ```
 
 The last argument is a version number of your choosing. The tag stores it next
-to the key, so you can tell which value a tag currently holds.
+to the key, so you can tell which value a tag currently holds. `KeyVersion`
+reads it back without a key. A new tag reports zero for every slot.
 
 Change slot zero last, and pass nil in place of the old value:
 
@@ -258,12 +260,16 @@ first read.
 
 ## Resetting the count
 
+Every read of the URL counts, not only taps from a phone. The tag adds one each
+time a reader selects the NDEF file and reads it, so `ReadNDEF` moves the count
+on too, even twice over one connection.
+
 The counter only counts up, and no command sets it to a value you choose.
 Writing a new URL to a tag that already uses Secure Dynamic Messaging leaves the
 count alone.
 
-The tag does clear the counter when the feature turns on. Use that to start
-again from zero. First write a URL with no placeholders, which turns the feature
+The tag does clear the counter when the feature turns on, after it was off.
+Use that to start again: the first read afterwards is number one. First write a URL with no placeholders, which turns the feature
 off. Then write your real URL, which turns it back on:
 
 ```go
@@ -272,7 +278,7 @@ tag.Authenticate(0, key)
 tag.WriteURL("https://example.com/", 1) // no placeholders, so the feature turns off
 
 tag.Authenticate(0, key)
-tag.WriteURL(url, 1) // the feature turns on, and the count starts at zero
+tag.WriteURL(url, 1) // the feature turns on, and the next read is number one
 ```
 
 ## Requirements
@@ -281,9 +287,13 @@ The package talks to a PC/SC card reader through
 [ebfe/scard](https://github.com/ebfe/scard). macOS includes PC/SC. Linux needs
 the `pcscd` daemon.
 
-`NewScard` claims the reader for your program alone. Call `Close` to hand it
-back, as the example does. Until you do, nothing else can reach the reader, not
-even another connection in the same program.
+`NewScard` connects to a tag already on the first reader. `WaitForCard`
+instead waits for a tag to arrive, on a reader named by `Readers`, until its
+context ends. Both claim the reader for your program alone. Call `Close` to
+hand it back, as the example does. Until you do, nothing else can reach the
+reader, not even another connection in the same program.
+
+`UID` asks the reader for the serial number of the tag. It needs no key.
 
 ## Limitations
 

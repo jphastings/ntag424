@@ -30,7 +30,7 @@ var (
 	ErrUnknown            = errors.New("unknown mirror placeholder")
 	ErrDuplicate          = errors.New("mirror placeholder used more than once")
 	ErrConflict           = errors.New("{{picc}} cannot be combined with {{uid}} or {{ctr}}")
-	ErrMACWithoutIdentity = errors.New("{{mac}} needs {{uid}} and {{ctr}}, or {{picc}}, to sign")
+	ErrMACWithoutIdentity = errors.New("{{mac}} needs {{uid}} or {{picc}} beside it, so a verifier knows which tag signed")
 )
 
 var placeholderRe = regexp.MustCompile(`\{\{[^}]*\}\}`)
@@ -72,10 +72,11 @@ func Expand(template string) (string, Positions, error) {
 	if seen[PICC] && (seen[UID] || seen[Counter]) {
 		return "", Positions{}, ErrConflict
 	}
-	// The tag derives the signing key from the UID and counter, so with
-	// neither mirrored the signature would be the same on every read; a
-	// real tag rejects this configuration with status 0x919E.
-	if seen[MAC] && !seen[UID] && !seen[Counter] && !seen[PICC] {
+	// The tag only mixes the UID into the signing key when it mirrors the
+	// UID, and a verifier needs that same UID to check the signature. With
+	// the counter alone, nothing in the URL ties the signature to a tag;
+	// with neither, a real tag rejects the settings with status 0x919E.
+	if seen[MAC] && !seen[UID] && !seen[PICC] {
 		return "", Positions{}, ErrMACWithoutIdentity
 	}
 

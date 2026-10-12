@@ -82,3 +82,19 @@ func TestChangeKey_OldKeyRequiredForOtherKey(t *testing.T) {
 func TestChangeKeyCRC(t *testing.T) {
 	assert.Equal(t, "789DFADC", upperHex(changeKeyCRC(mustHex(t, "F3847D627727ED3BC9C4CC050489B966"))))
 }
+
+func TestKeyVersion(t *testing.T) {
+	fake := newFakeCard(t,
+		exchange{capdu: "00A4040C07D2760000850101", rapdu: "9000"},
+		exchange{capdu: "90640000010300", rapdu: "019100"},
+	)
+
+	v, err := NewCommandProcessor(fake).KeyVersion(3)
+	require.NoError(t, err)
+	assert.Equal(t, byte(1), v)
+}
+
+func TestKeyVersion_InvalidKeyNo(t *testing.T) {
+	_, err := NewCommandProcessor(newFakeCard(t)).KeyVersion(5)
+	assert.ErrorIs(t, err, ErrInvalidKeyNo)
+}
