@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/crc32"
+
+	"github.com/skythen/apdu"
 )
 
 // changeKeyCRC computes the CRC32 that ChangeKey appends to KeyData when
@@ -64,4 +66,33 @@ func (cp *CommandProcessor) ChangeKey(keyNo byte, oldKey, newKey []byte, version
 	}
 
 	return nil
+}
+
+// KeyVersion returns the version stored alongside key keyNo, as set by
+// ChangeKey. A factory-fresh tag reports 0 for every key. It needs no
+// authentication, but it selects the NDEF application, which ends any
+// authenticated session.
+func (cp *CommandProcessor) KeyVersion(keyNo byte) (byte, error) {
+	if keyNo > 4 {
+		return 0, ErrInvalidKeyNo
+	}
+
+	// Without the application selected, the tag answers 9140 even for key 0.
+	if err := cp.ISOSelectFile(SelectDirectoryByName(aidNDEF)); err != nil {
+		return 0, err
+	}
+
+	r, err := cp.card.SendCommandAPDU(&apdu.Capdu{
+		Cla: 0x90, Ins: 0x64, P1: 0x00, P2: 0x00,
+		Data: []byte{keyNo},
+		Ne:   apdu.MaxLenResponseDataStandard,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("GetKeyVersion: %w", err)
+	}
+	if len(r.Data) != 1 {
+		return 0, fmt.Errorf("GetKeyVersion: expected 1 byte, got %d", len(r.Data))
+	}
+
+	return r.Data[0], nil
 }
