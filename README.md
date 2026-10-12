@@ -208,7 +208,8 @@ err := tag.ChangeKey(1, oldSigningKey, newSigningKey, 1)
 ```
 
 The last argument is a version number of your choosing. The tag stores it next
-to the key, so you can tell which value a tag currently holds.
+to the key, so you can tell which value a tag currently holds. `KeyVersion`
+reads it back without a key. A new tag reports zero for every slot.
 
 Change slot zero last, and pass nil in place of the old value:
 
@@ -250,12 +251,16 @@ first read.
 
 ## Resetting the count
 
+Every read of the URL counts, not only taps from a phone. The tag adds one each
+time a reader selects the NDEF file and reads it, so `ReadNDEF` moves the count
+on too, even twice over one connection.
+
 The counter only counts up, and no command sets it to a value you choose.
 Writing a new URL to a tag that already uses Secure Dynamic Messaging leaves the
 count alone.
 
-The tag does clear the counter when the feature turns on. Use that to start
-again from zero. First write a URL with no placeholders, which turns the feature
+The tag does clear the counter when the feature turns on, after it was off.
+Use that to start again: the first read afterwards is number one. First write a URL with no placeholders, which turns the feature
 off. Then write your real URL, which turns it back on:
 
 ```go
@@ -264,7 +269,7 @@ tag.Authenticate(0, key)
 tag.WriteURL("https://example.com/", 1) // no placeholders, so the feature turns off
 
 tag.Authenticate(0, key)
-tag.WriteURL(url, 1) // the feature turns on, and the count starts at zero
+tag.WriteURL(url, 1) // the feature turns on, and the next read is number one
 ```
 
 ## Requirements
